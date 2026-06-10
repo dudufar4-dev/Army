@@ -280,32 +280,45 @@
   </div>
 
   <div class="card">
-    <p class="card-title">קלעים — 6 חיילים &nbsp;|&nbsp; טריגקון + אקילה</p>
+    <p class="card-title">מלא את 6 החיילים (שם ושם משפחה) אשר מוגדרים כקלעים (יקבלו נשק עם טרי'גקון ואקילה), וסמן אם הוא ימני או שמאלי</p>
     <div id="sharp"></div>
   </div>
 
   <div class="card">
-    <p class="card-title">מטוליסטים — 6 חיילים &nbsp;|&nbsp; זאבון + מפרולייט</p>
+    <p class="card-title">מלא את 6 החיילים (שם ושם משפחה) אשר יקבלו מטול (נשק עם זאבון ומכוונת מפרולייט) וסמן אם הוא ימני או שמאלי</p>
     <div id="launch"></div>
   </div>
 
   <div class="card">
-    <p class="card-title">מפקדים / סמלים — 3 &nbsp;|&nbsp; כוונת מפרולייט</p>
+    <p class="card-title">מלא את 3 המפקדים / סמלים בפלוגה אשר יקבלו כוונת מפרולייט</p>
     <div id="cmdrs"></div>
   </div>
 
   <div class="card">
-    <p class="card-title">כוונת MARS — 4 אנשים &nbsp;|&nbsp; 3 ממים + סמפ</p>
+    <p class="card-title">מלא את 4 האנשים בפלוגה (3 ממים וסמפ) שיקבלו כוונת MARS</p>
     <div id="mars"></div>
   </div>
 
-  <button class="btn-submit" onclick="buildSummary()">הצג סיכום</button>
-  <button class="btn-reset" onclick="resetForm()">נקה טופס</button>
+  <input type="hidden" id="hidden-summary" name="סיכום_טופס">
+  <input type="hidden" id="hidden-name" name="שם_ממלא">
+  <input type="hidden" id="hidden-company" name="פלוגה">
+
+  <button class="btn-submit" type="button" onclick="handleSubmit()">שלח טופס</button>
+  <button class="btn-reset" type="button" onclick="resetForm()">נקה טופס</button>
 
   <div class="summary-section" id="summary-section">
     <h2>סיכום הטופס</h2>
     <div class="summary-box" id="summary-box"></div>
-    <button class="btn-copy" onclick="copyText()">העתק סיכום</button>
+    <button class="btn-copy" type="button" onclick="copyText()">העתק סיכום</button>
+  </div>
+
+  <div id="success-msg" style="display:none; margin-top:1.5rem; background:#f0faf4; border:1px solid #b7e4c7; border-radius:12px; padding:1.25rem 1.5rem; text-align:center;">
+    <p style="font-size:16px; font-weight:600; color:#1a6635; margin-bottom:4px;">✓ הטופס נשלח בהצלחה!</p>
+    <p style="font-size:13px; color:#2d8653;">הנתונים הועברו ויגיעו למייל.</p>
+  </div>
+
+  <div id="error-msg" style="display:none; margin-top:1rem; background:#fff5f5; border:1px solid #f5c6c6; border-radius:12px; padding:1rem 1.5rem; text-align:center;">
+    <p style="font-size:13px; color:#c0392b;">שגיאה בשליחה — נסה שוב או בדוק את החיבור לאינטרנט.</p>
   </div>
 </div>
 
@@ -339,17 +352,15 @@ function getSoldiers(id, count, withHand) {
       const r = document.querySelector(`input[name="${id}h${i+1}"]:checked`);
       hand = r ? ` (${r.value})` : ' (לא סומן)';
     }
-    return `  ${i+1}. ${name}${hand}`;
+    return `${i+1}. ${name}${hand}`;
   }).join('\n');
 }
 
-function buildSummary() {
+function buildText() {
   const name = document.getElementById('fname').value.trim() || '—';
   const comp = document.getElementById('fcompany').value.trim() || '—';
   const left = document.getElementById('lefties').value.trim() || '—';
-
-  const text =
-`ממלא: ${name}   |   פלוגה: ${comp}
+  return `ממלא: ${name} | פלוגה: ${comp}
 שמאליים (מיקרו תבור): ${left}
 
 קלעים (טריגקון + אקילה):
@@ -363,11 +374,51 @@ ${getSoldiers('cmdrs', 3, false)}
 
 כוונת MARS (3 ממים + סמפ):
 ${getSoldiers('mars', 4, false)}`;
+}
+
+async function handleSubmit() {
+  const name = document.getElementById('fname').value.trim();
+  const comp = document.getElementById('fcompany').value.trim();
+  if (!name || !comp) {
+    alert('נא למלא שם ממלא ופלוגה לפחות.');
+    return;
+  }
+
+  const text = buildText();
+  document.getElementById('hidden-summary').value = text;
+  document.getElementById('hidden-name').value = name;
+  document.getElementById('hidden-company').value = comp;
 
   document.getElementById('summary-box').textContent = text;
-  const sec = document.getElementById('summary-section');
-  sec.style.display = 'block';
-  sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('summary-section').style.display = 'block';
+
+  const btn = document.querySelector('.btn-submit');
+  btn.textContent = 'שולח...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('https://formspree.io/f/xvznqbed', {
+      method: 'POST',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        'שם_ממלא': name,
+        'פלוגה': comp,
+        'סיכום_טופס': text
+      })
+    });
+
+    if (res.ok) {
+      document.getElementById('success-msg').style.display = 'block';
+      document.getElementById('error-msg').style.display = 'none';
+      btn.textContent = '✓ נשלח';
+    } else {
+      throw new Error('failed');
+    }
+  } catch {
+    document.getElementById('error-msg').style.display = 'block';
+    btn.textContent = 'שלח טופס';
+    btn.disabled = false;
+  }
 }
 
 function copyText() {
@@ -384,6 +435,11 @@ function resetForm() {
   document.querySelectorAll('input[type="text"]').forEach(i => i.value = '');
   document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
   document.getElementById('summary-section').style.display = 'none';
+  document.getElementById('success-msg').style.display = 'none';
+  document.getElementById('error-msg').style.display = 'none';
+  const btn = document.querySelector('.btn-submit');
+  btn.textContent = 'שלח טופס';
+  btn.disabled = false;
 }
 </script>
 </body>
